@@ -337,11 +337,21 @@ echo $pass | sudo ftpasswd --stdin --passwd --file=/etc/proftpd/ftppasswd --name
 ###############END PROFTP CREATE#############
 echo "Loading....."
 #################START JSON#############################
+echo "{
+        "domainname": "$domain_name",
+	"db":"$domain_name"
+        "location":
+                {
+                        "street": "Block 1",
+                        "city": "Innopolis",
+                        "country": "RU"
+                 
+}" > $host_dir_path/json.txt
 
-
+jq $host_dir_path/json.txt
 #################END JSON###############################
 echo "Loading....."
-#eval `curl -X GET "$HOST_NAME" -H $mail -H $key -H "$C_TYPE"  | sed -r 's/"([a-z]+)":[ ]+("[a-z0-9]+")[,]{0,1}/\1=\2;/g;s/^[ \t]+//g' | grep ';'`
+
 ############TEST HOST####################
 
 /sbin/apache2ctl -t -D DUMP_VHOSTS ### получить список виртуальных хостов, настроенных на определенном сервере
