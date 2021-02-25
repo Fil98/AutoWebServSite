@@ -5,7 +5,10 @@ We have a ready-configured server on which Debian OC and web environment:
 - mysql
 - proftpd
 
-You need to create 2 scripts on bash
+Debian 10.x
+sudo apt-get update && apt-get install nginx php7.0-fpm php7.0-mysql mysql-server curl php mysql mailutils posftix jq
+
+need to create 2 scripts on bash
 
 The first script accepts the domain name as a positional parameter
 The script creates:
