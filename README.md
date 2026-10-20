@@ -1,36 +1,116 @@
 # JustScriptsAddSiteAndDB
-We have a ready-configured server on which Debian OC and web environment:
-- nginx
--apache2
-- mysql
-- proftpd
 
-Debian 10.x
+Набор Bash-скриптов для автоматизации развертывания веб-сайтов (Nginx + Apache2 + MySQL + ProFTPD) и управления их резервным копированием в среде Debian.
 
+---
 
-sudo apt-get update && apt-get install nginx php7.0-fpm php7.0-mysql mysql-server curl php mysql mailutils posftix jq
+## 📋 Окружение и системные требования
 
-need to create 2 scripts on bash
+* **ОС:** Debian 10.x (Buster)
+* **Веб-стек:**
+  * **Веб-серверы:** Nginx (фронтенд / отдача статики) + Apache2 (бэкенд для PHP)
+  * **СУБД:** MySQL Server
+  * **FTP:** ProFTPD (с поддержкой `ftpasswd`)
+  * **PHP:** `php7.0-fpm`, `php7.0-mysql`, `php-cli`
+  * **Вспомогательные утилиты:** `curl`, `jq`, `mailutils`, `postfix`
 
-The first script accepts the domain name as a positional parameter
-The script creates:
-- DocumentRoot of the site at the path /home/sites/(domain name)/www
-- Virtual host in nginx, where the static is given by nginx, and php scripts are proxied to apache2
-- Virtual host in apache2
-- A database and a user with full privileges to this database in MySQL.
-The database name is formed from the domain name, where the dots and hyphens should be replaced with an underscore. (For example, a domain name site-studio.ru, should become site_studio_ru)
-The user name is the same as the DB name.
-For the password, use the gen_pass function shown below.
-- A proFTPd virtual user account using the ftpasswd program (authorization is stored in the /etc/proftpd/ftppasswd file, the working directory for the user is created at the path /home/sites/(domain name) / ftp). The user name is formed in the same way as the database name.
-- Restarts the necessary services for the changes to take effect
-- Makes an HTTP request to an abstract API with the transfer in the request body of JSON (domain name and access details) (you can create the JSON structure yourself)
-- Tests the host for availability
-- Sends a report with access details to the e-mail address
+### Быстрая установка зависимостей
 
-The second script also accepts the domain name as a positional parameter
-The script makes a backup of the site and the database:
-- The path for storing backups /home / backup
--The site files are located on the path /home/sites/(domain name)/www
-- Backup files to archive in the format tar.gz, when backing up exclude files with the extension jpg, png,gif
--Dump the database using mysqldump
--Backups older than 10 days to delete.
+```bash
+sudo apt-get update && sudo apt-get install -y \
+    nginx \
+    apache2 \
+    mysql-server \
+    proftpd-basic \
+    php7.0-fpm \
+    php7.0-mysql \
+    php \
+    curl \
+    jq \
+    mailutils \
+    postfix
+```
+
+---
+
+## 🛠 Состав проекта
+
+Проект включает в себя два основных Bash-скрипта:
+
+1. **`add_site.sh`** — автоматическое создание и настройка виртуального хоста, базы данных, FTP-доступа и отправка уведомлений.
+2. **`backup_site.sh`** — архивация файлов сайта (с фильтрацией тяжелой статики), создание дампа БД и ротация старых копий.
+
+---
+
+## 🚀 1. Скрипт развертывания сайта (`add_site.sh`)
+
+Скрипт принимает доменное имя сайта в качестве первого позиционного аргумента.
+
+### Использование
+
+```bash
+sudo ./add_site.sh example.com
+```
+
+### Выполняемые действия
+
+1. **Файловая структура:**
+   * Создает корень сайта: `/home/sites/<домен>/www`
+   * Создает каталог FTP: `/home/sites/<домен>/ftp`
+   * Назначает корректные права и владельцев (`www-data`).
+
+2. **Веб-серверы:**
+   * **Nginx:** настраивает виртуальный хост; статика (`.css`, `.js`, изображения и т.д.) отдается напрямую через Nginx, запросы к `.php` проксируются на локальный порт Apache2.
+   * **Apache2:** настраивает виртуальный хост, слушающий внутренний порт (например, `127.0.0.1:8080`).
+
+3. **База данных (MySQL):**
+   * Преобразует домен в системный идентификатор: точки (`.`) и дефисы (`-`) заменяются на нижнее подчеркивание (`_`).
+     * *Пример:* `site-studio.ru` $\rightarrow$ `site_studio_ru`
+   * Создает БД и пользователя с полученным именем.
+   * Генерирует надежный пароль через функцию `gen_pass`.
+   * Выдает полные привилегии пользователю на созданную БД.
+
+4. **FTP (ProFTPD):**
+   * Создает виртуальную учетную запись через утилиту `ftpasswd`.
+   * Авторизация сохраняется в `/etc/proftpd/ftppasswd`.
+   * Домашняя папка пользователя изолирована: `/home/sites/<домен>/ftp`.
+
+5. **Сервисы:**
+   * Проверяет корректность конфигураций (`nginx -t`, `apache2ctl configtest`).
+   * Перезапускает / перезагружает службы (`nginx`, `apache2`, `mysql`, `proftpd`).
+
+6. **Интеграция и уведомления:**
+   * **HTTP API:** отправляет `POST`-запрос с JSON-пейлоадом (домен, реквизиты доступа к БД и FTP) на внешний API endpoint.
+   * **Проверка:** выполняет curl-проверку доступности хоста.
+   * **E-mail отчет:** отправляет письмо с реквизитами доступа через `mailutils`/`postfix` на административный email.
+
+---
+
+## 💾 2. Скрипт резервного копирования (`backup_site.sh`)
+
+Скрипт принимает доменное имя в качестве позиционного параметра и создает полный бэкап проекта.
+
+### Использование
+
+```bash
+sudo ./backup_site.sh example.com
+```
+
+### Параметры и логика бэкапа
+
+| Параметр | Значение |
+| :--- | :--- |
+| **Каталог бэкапов** | `/home/backup/` |
+| **Исходные файлы** | `/home/sites/<домен>/www` |
+| **Формат архива** | `.tar.gz` |
+| **Исключения из архива** | Файлы с расширениями: `*.jpg`, `*.jpeg`, `*.png`, `*.gif` |
+| **База данных** | Полный SQL-дамп через `mysqldump` |
+| **Ротация** | Автоматическое удаление архивов старше **10 дней** (`find ... -mtime +10 -delete`) |
+
+---
+
+## 🔒 Безопасность и рекомендации
+
+* Скрипты должны запускаться с правами суперпользователя (`root` или через `sudo`).
+* Храните учетные данные администратора MySQL в защищенном конфигурационном файле (например, `~/.my.cnf`) с правами `0600`, чтобы пароли не передавались в открытом виде в параметрах командной строки.
+* Для отправки почты убедитесь, что в системе корректно настроена FQDN-запись сервера и настроен PTR/SPF, чтобы отчеты не попадали в спам.
