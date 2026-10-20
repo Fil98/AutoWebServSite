@@ -1,4 +1,3 @@
-# JustScriptsAddSiteAndDB
 
 Набор Bash-скриптов для автоматизации развертывания веб-сайтов (Nginx + Apache2 + MySQL + ProFTPD) и управления их резервным копированием в среде Debian.
 
